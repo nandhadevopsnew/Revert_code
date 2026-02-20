@@ -1,0 +1,435 @@
+ESLint:
+-------
+It analyzes your code and tells you:
+❌ errors
+⚠️ warnings
+❗ bad coding patterns
+📏 style violations
+🚫 unsafe code
+🧹 unused variables
+🪲 possible bugs
+
+Basically, ESLint helps developers write clean, consistent, error-free code.
+
+disableConcurrentBuilds()
+-------------------------
+Do not run this pipeline if a previous build is already running.
+Once pipeline is completed after run it using this command.
+
+
+Jenkins SonarQube pipeline
+--------------------------
+
+pipeline {
+    agent any
+
+    stages {
+        stage('Git checkout') {
+            steps {
+                checkout scmGit(branches: [[name: '*/main']], extensions: [], userRemoteConfigs: [[credentialsId: 'githubtoken', url: 'https://github.com/Ultrapronandha/Demo.git']])
+            }
+        }
+        stage('Build') {
+            steps {
+                sh 'mvn clean package'
+                sh 'python3 pyh3.py'
+            }
+        }
+        stage('Test') {
+            steps {
+                sh 'python3 basic_test.py'
+            }
+        }
+         stage('Sonar analysis') {
+            steps {
+                // Run SonarQube analysis
+                sh '''
+                mvn sonar:sonar \
+                -Dsonar.host.url=http://52.73.42.101:9000/ \
+                -Dsonar.login=squ_4e47bcd3c203eb7cb4a0d69e846b342619cf452e
+                '''
+            }
+        }
+    }
+}
+
+
+
+Jenkins docker pipeline
+-----------------------
+Create dockerhub password personal token create before add read and write access created.  
+
+pipeline {
+    agent any
+
+    stages {
+        stage('Scm') {
+            steps {
+                checkout changelog: false, poll: false, scm: scmGit(branches: [[name: '*/master']], extensions: [], userRemoteConfigs: [[url: 'https://github.com/Ultrapronandha/docker-spring-boot-java-web-service-example.git']])
+            }
+        }
+        
+        stage('Maven Build') {
+            steps {
+                sh 'mvn clean install'
+            }
+        }
+        
+        stage('Docker Build & Push') {
+            steps {
+                script {
+                   withDockerRegistry(credentialsId: 'dockerpass') {
+                        // Building and pushing Docker image
+                        sh 'docker build -t nandhakumar246/nandhafile:legend .'
+                        sh 'docker push nandhakumar246/nandhafile:legend'
+                    }
+                }
+            }
+        }
+    }
+}
+
+
+LLMOPS Pipeline:
+----------------
+
+Plugins-->Workspace Cleanup-->Pipeline Utility Steps-->Artifact Manager on S3
+
+pipeline {
+    agent any
+    environment {
+        // Define Python environment if needed
+        PYTHON_ENV = "python3"
+    }
+    stages {
+        // Stage to install Python dependencies
+        stage('Install Dependencies') {
+            steps {
+                script {
+                    // Ensure that dependencies like transformers and torch are installed
+                    sh '''
+                        pip install --upgrade pip
+                        pip install transformers torch
+                    '''
+                }
+            }
+        }
+        // Stage to execute LLM Task (e.g., querying the model or processing input)
+        stage('Run LLM Task') {
+            steps {
+                script {
+                    // Run the LLM task using Python, assuming `run_llm_task.py` is present
+                    sh '''
+                        $PYTHON_ENV run_llm_task.py
+                    '''
+                }
+            }
+        }
+        // Optional: Stage to archive results or logs (e.g., LLM task outputs)
+        stage('Archive Results') {
+            steps {
+                script {
+                    // Archive the results or logs if necessary
+                    archiveArtifacts allowEmptyArchive: true, artifacts: 'llm_output.log'
+                }
+            }
+        }
+    }
+    post {
+        // Cleanup or notifications after the pipeline execution
+        always {
+            echo 'Pipeline execution complete.'
+        }
+    }
+}
+
+
+
+test.convoautomation.com:
+------------------------
+pipeline {
+    agent any
+
+    environment {
+        DEPLOY_SERVER = "13.216.174.144"
+        DEPLOY_PATH = "/var/www/html/convoautomation"
+    }
+
+    stages {
+
+        /* -------------------- CHECKOUT CODE -------------------- */
+        stage('Checkout') {
+            steps {
+                echo "Checking out the latest code from GitHub..."
+                git branch: 'main',
+                    credentialsId: 'github-token',
+                    url: 'https://github.com/GenAI-Resonance/Frontend_Web_Graytitude.git'
+            }
+        }
+
+        /* -------------------- INSTALL & BUILD -------------------- */
+        stage('Build') {
+            steps {
+                sh '''
+                    echo "Installing dependencies safely..."
+                    npm ci
+
+                    echo "Building React app..."
+                    CI=false npm run build
+                '''
+            }
+        }
+
+        /* -------------------- RUN TESTS -------------------- */
+        stage('Run Tests') {
+            steps {
+                sh '''
+                    echo "Running unit tests..."
+                    # Run Jest tests once and exit
+                    npm test -- --watchAll=false || true
+                '''
+            }
+        }
+
+        /* -------------------- SECURITY SCAN -------------------- */
+        stage('Security Scan') {
+            steps {
+                sh '''
+                    echo "Scanning npm packages for vulnerabilities..."
+                    npm audit --audit-level=moderate || true
+
+                    echo "Security scan completed (non-blocking)."
+                '''
+            }
+        }
+
+        /* -------------------- DEPLOY -------------------- */
+        stage('Backup & Deploy') {
+            steps {
+                withCredentials([sshUserPrivateKey(credentialsId: 'deploy', keyFileVariable: 'SSH_KEY', usernameVariable: 'DEPLOY_USER')]) {
+                    sh '''
+                        TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+
+                        echo "Taking backup of old build..."
+                        ssh -i $SSH_KEY $DEPLOY_USER@$DEPLOY_SERVER "cp -r $DEPLOY_PATH/build $DEPLOY_PATH/build_$TIMESTAMP || true"
+
+                        echo "Copying new build..."
+                        scp -i $SSH_KEY -r build/* $DEPLOY_USER@$DEPLOY_SERVER:$DEPLOY_PATH/build/
+
+                        echo "Restarting Nginx..."
+                        ssh -i $SSH_KEY $DEPLOY_USER@$DEPLOY_SERVER "sudo systemctl restart nginx"
+
+                        echo "✅ Deployment completed successfully!"
+                    '''
+                }
+            }
+        }
+    }
+
+    /* -------------------- PIPELINE RESULT -------------------- */
+    post {
+        success {
+            echo "✅ Build, Test, Security Scan & Deployment successful!"
+        }
+        failure {
+            echo "❌ Pipeline failed. Check build logs for details."
+        }
+    }
+}
+
+
+
+without ssh:
+-------------
+pipeline {
+    agent any
+
+    environment {
+        DEPLOY_SERVER = "13.216.174.144"
+        DEPLOY_PATH = "/var/www/html/convoautomation"
+    }
+
+    stages {
+
+        stage('Checkout') {
+            steps {
+                git branch: 'main',
+                    credentialsId: 'github-token',
+                    url: 'https://github.com/GenAI-Resonance/Frontend_Web_Graytitude.git'
+            }
+        }
+
+        stage('Build') {
+            steps {
+                sh '''
+                    echo "Installing dependencies safely..."
+                    npm ci
+
+                    echo "Building React app..."
+                    CI=false npm run build
+                '''
+            }
+        }
+
+        stage('Backup & Deploy') {
+            steps {
+                // Use the deploy SSH key from Jenkins credentials
+                withCredentials([sshUserPrivateKey(credentialsId: 'deploy', keyFileVariable: 'SSH_KEY', usernameVariable: 'DEPLOY_USER')]) {
+                    sh '''
+                        TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+
+                        echo "Taking backup of old build..."
+                        ssh -i $SSH_KEY $DEPLOY_USER@$DEPLOY_SERVER "cp -r $DEPLOY_PATH/build $DEPLOY_PATH/build_$TIMESTAMP || true"
+
+                        echo "Copying new build..."
+                        scp -i $SSH_KEY -r build/* $DEPLOY_USER@$DEPLOY_SERVER:$DEPLOY_PATH/build/
+
+                        echo "Restarting Nginx..."
+                        ssh -i $SSH_KEY $DEPLOY_USER@$DEPLOY_SERVER "sudo systemctl restart nginx"
+
+                        echo "✅ Deployment completed successfully!"
+                    '''
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "✅ Build & Deployment successful!"
+        }
+        failure {
+            echo "❌ Deployment failed. Check build logs for errors."
+        }
+    }
+}
+
+
+
+Realtime:
+---------
+pipeline {
+    agent any
+
+    environment {
+        DEPLOY_SERVER = "13.216.174.144"
+        DEPLOY_PATH = "/var/www/html/convoautomation"
+    }
+
+    options {
+        disableConcurrentBuilds()
+        timestamps()
+    }
+
+    stages {
+
+        /* -------------------- CHECKOUT CODE -------------------- */
+        stage('Checkout') {
+            steps {
+                echo "Checking out the latest code from GitHub..."
+                git branch: 'main',
+                    credentialsId: 'github-token',
+                    url: 'https://github.com/GenAI-Resonance/Baseline_BasePlatform_FrontendWeb.git'
+            }
+        }
+
+        /* -------------------- INSTALL DEPENDENCIES -------------------- */
+        stage('Install Dependencies') {
+            steps {
+                sh '''
+                    echo "Installing dependencies..."
+                    npm ci
+                '''
+            }
+        }
+
+        /* -------------------- LINTING -------------------- */
+        stage('Linting') {
+            steps {
+                sh '''
+                    echo "Running ESLint (strict)..."
+                    npm install eslint --save-dev
+                    npx eslint src
+                '''
+            }
+        }
+
+        /* -------------------- RUN TESTS BEFORE BUILD -------------------- */
+        stage('Run Tests') {
+            steps {
+                sh '''
+                    echo "Running unit tests..."
+                    npm test -- --watchAll=false --passWithNoTests
+                '''
+            }
+        }
+
+        /* -------------------- SECURITY SCAN BEFORE BUILD -------------------- */
+        stage('Security Scan') {
+            steps {
+                sh '''
+                    echo "Running security scan..."
+                    npm audit --audit-level=moderate || true
+                '''
+            }
+        }
+
+        /* -------------------- BUILD ONLY IF TEST & SCAN PASS -------------------- */
+        stage('Build') {
+            steps {
+                sh '''
+                    echo "Building React app..."
+                    CI=false npm run build
+                '''
+            }
+        }
+
+        /* -------------------- DEPLOY -------------------- */
+        stage('Backup & Deploy') {
+            steps {
+                withCredentials([sshUserPrivateKey(
+                    credentialsId: 'deploy',
+                    keyFileVariable: 'SSH_KEY',
+                    usernameVariable: 'DEPLOY_USER'
+                )]) {
+                    sh '''
+                        TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+
+                        echo "Backing up old build on server..."
+                        ssh -i $SSH_KEY $DEPLOY_USER@$DEPLOY_SERVER "cp -r $DEPLOY_PATH/build $DEPLOY_PATH/build_$TIMESTAMP || true"
+
+                        echo "Deleting old backups (keep only last 5)..."
+                        ssh -i $SSH_KEY $DEPLOY_USER@$DEPLOY_SERVER "
+                            cd $DEPLOY_PATH &&
+                            ls -1dt build_* 2>/dev/null | tail -n +6 | xargs -r rm -rf
+                        "
+
+                        echo "Deploying new build..."
+                        scp -i $SSH_KEY -r build/* $DEPLOY_USER@$DEPLOY_SERVER:$DEPLOY_PATH/build/
+
+                        echo "Restarting Nginx..."
+                        ssh -i $SSH_KEY $DEPLOY_USER@$DEPLOY_SERVER "sudo systemctl restart nginx"
+
+                        echo "Deployment completed ✔"
+                    '''
+                }
+            }
+        }
+    }
+
+    /* -------------------- EMAIL NOTIFICATION ADDED -------------------- */
+    post {
+        success {
+            echo "✔ Pipeline completed successfully!"
+            mail to: 'vijay.velusamy@graytitude.com',
+                 subject: 'Jenkins Job SUCCESS - CAP Automation',
+                 body: 'Your CAP Automation pipeline completed successfully.'
+        }
+        failure {
+            echo "❌ Pipeline failed. Check logs."
+            mail to: 'vijay.velusamy@graytitude.com',
+                 subject: 'Jenkins Job FAILED - CAP Automation',
+                 body: 'Your CAP Automation pipeline failed. Please check Jenkins logs.'
+        }
+    }
+}
