@@ -1,0 +1,116 @@
+test compose file:
+----------------
+
+version: '3.8'
+
+services:
+  react_frontend:
+    build:
+      context: ./frontend
+    container_name: react_frontend
+    ports:
+      - "3000:3000"
+    restart: always
+
+  fastapi_backend:
+    build:
+      context: ./backend
+    container_name: fastapi_backend
+    ports:
+      - "8000:8000"
+    restart: always
+
+  nginx:
+    image: nginx:latest
+    container_name: graytitude_nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/graytitude.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - react_frontend
+      - fastapi_backend
+    restart: always
+
+
+nginx/graytitude.conf:
+--------------------
+
+server {
+    listen 80;
+    server_name graytitude.genairesonance.com;
+
+    location / {
+        proxy_pass http://react_frontend:3000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+
+    location /api/ {
+        proxy_pass http://fastapi_backend:8000/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+
+    location /ws {
+        proxy_pass http://fastapi_backend:8000/ws;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+    }
+
+    location /upload_documents {
+        proxy_pass http://fastapi_backend:8000/upload_documents;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+
+    location /chatagent/ {
+        proxy_pass http://fastapi_backend:8000/chatagent/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+}
+
+
+convoautomation.com:
+--------------------
+
+server {
+    listen 80;
+    server_name convoautomation.com www.convoautomation.com;
+
+    location / {
+        proxy_pass http://react_frontend:3000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+
+    location /api/ {
+        proxy_pass http://fastapi_backend:8000/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+
+    location /ws {
+        proxy_pass http://fastapi_backend:8000/ws;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+    }
+
+    location /upload_documents {
+        proxy_pass http://fastapi_backend:8000/upload_documents;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+
+    location /chatagent/ {
+        proxy_pass http://fastapi_backend:8000/chatagent/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+}
+

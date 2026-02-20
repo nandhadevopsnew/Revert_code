@@ -1,0 +1,17 @@
+1. chunking by topic
+2. image upload speed
+3. improper image part
+4. web search and pdf analysis working together
+5. if the question is not related to any pdf.... should ask shall i use a web search
+6. uploading n number of pdfs in separate place... and doing qna
+7. llm vs web search
+8. websearch button off -> ask user if u need websearch / button on -> uses tool to answer questions
+9. transcribe for audio input
+10. captions for video
+11. upload image and do web search
+12. stream summary of each chunk
+13. csv image error failure after 5 iterations
+
+
+
+
